@@ -36,7 +36,7 @@ function EpicAuth.new(options)
     self.path = options.path
     self.exitOnError = (options.exitOnError ~= false)
     self.loggingEnabled = options.loggingEnabled or false
-    self.custom_hwid = options.hwid
+    self.custom_hwid = options.hwid or options.custom_hwid or options.hwid_handler
     self.http_handler = options.http_handler
 
     self.sessionid = nil
@@ -60,22 +60,31 @@ function EpicAuth:getHWID()
 end
 
 function EpicAuth:getUsername()
-    return os.getenv("USERNAME") or os.getenv("USER") or "unknown"
+    if os and type(os.getenv) == "function" then
+        return os.getenv("USERNAME") or os.getenv("USER") or "unknown"
+    end
+    return "unknown"
 end
 
 function EpicAuth:fail(message, ms)
     message = tostring(message or "Unknown error")
     if self.exitOnError then
-        io.stderr:write(string.format("[EpicAuth] %s\n", message))
-        if ms and ms > 0 and type(os.execute) == "function" then
+        if io and io.stderr and type(io.stderr.write) == "function" then
+            io.stderr:write(string.format("[EpicAuth] %s\n", message))
+        else
+            print(string.format("[EpicAuth] %s", message))
+        end
+        if ms and ms > 0 and os and type(os.execute) == "function" then
             local sec = math.ceil(ms / 1000)
-            if package.config:sub(1, 1) == "\\" then
+            local is_windows = (package and type(package.config) == "string" and package.config:sub(1, 1) == "\\")
+                or (os and type(os.getenv) == "function" and (os.getenv("OS") or ""):find("Windows") ~= nil)
+            if is_windows then
                 os.execute("timeout /t " .. sec .. " >nul 2>nul || ping -n " .. (sec + 1) .. " 127.0.0.1 >nul 2>nul")
             else
                 os.execute("sleep " .. sec .. " 2>/dev/null")
             end
         end
-        if type(os.exit) == "function" then
+        if os and type(os.exit) == "function" then
             os.exit(1)
         else
             error(EpicAuthError.new(message))
@@ -94,17 +103,21 @@ function EpicAuth:logEvent(message)
 
     local exe_path = (arg and arg[0]) or "epicauth_app"
     local exe_name = exe_path:match("[^/\\]+$") or "epicauth_app"
-    local home = os.getenv("USERPROFILE") or os.getenv("HOME") or "."
+    local home = (os and type(os.getenv) == "function" and (os.getenv("USERPROFILE") or os.getenv("HOME"))) or "."
     local log_dir = home .. "/.epicauth/logs/" .. exe_name
 
     pcall(function()
-        if package.config:sub(1, 1) == "\\" then
-            os.execute('mkdir "' .. log_dir:gsub("/", "\\") .. '" 2>nul')
-        else
-            os.execute('mkdir -p "' .. log_dir .. '" 2>/dev/null')
+        local is_windows = (package and type(package.config) == "string" and package.config:sub(1, 1) == "\\")
+            or (os and type(os.getenv) == "function" and (os.getenv("OS") or ""):find("Windows") ~= nil)
+        if os and type(os.execute) == "function" then
+            if is_windows then
+                os.execute('mkdir "' .. log_dir:gsub("/", "\\") .. '" 2>nul')
+            else
+                os.execute('mkdir -p "' .. log_dir .. '" 2>/dev/null')
+            end
         end
 
-        local date_str = os.date("%b_%d_%Y")
+        local date_str = (os and type(os.date) == "function" and os.date("%b_%d_%Y")) or "logs"
         local log_file = log_dir .. "/" .. date_str .. "_logs.txt"
 
         local sanitized = tostring(message)
@@ -113,11 +126,13 @@ function EpicAuth:logEvent(message)
             sanitized = self:redactField(sanitized, f)
         end
 
-        local f = io.open(log_file, "a")
-        if f then
-            local iso_time = os.date("!%Y-%m-%dT%H:%M:%SZ")
-            f:write(string.format("[%s] [%s] %s\n", iso_time, exe_name, sanitized))
-            f:close()
+        if io and type(io.open) == "function" then
+            local f = io.open(log_file, "a")
+            if f then
+                local iso_time = (os and type(os.date) == "function" and os.date("!%Y-%m-%dT%H:%M:%SZ")) or ""
+                f:write(string.format("[%s] [%s] %s\n", iso_time, exe_name, sanitized))
+                f:close()
+            end
         end
     end)
 end
@@ -159,7 +174,9 @@ end
 
 function EpicAuth:displayQrCode(qrCodeUrl)
     if not qrCodeUrl or #qrCodeUrl == 0 then return end
-    local is_windows = (package.config:sub(1, 1) == "\\")
+    if not os or type(os.execute) ~= "function" then return end
+    local is_windows = (package and type(package.config) == "string" and package.config:sub(1, 1) == "\\")
+        or (os and type(os.getenv) == "function" and (os.getenv("OS") or ""):find("Windows") ~= nil)
     if is_windows then
         os.execute(string.format('start "" "%s"', qrCodeUrl))
     else
@@ -256,11 +273,14 @@ function EpicAuth:init()
     if response.message == "invalidver" then
         if response.download and #response.download > 0 then
             print("Your application is outdated.")
-            local is_windows = (package.config:sub(1, 1) == "\\")
-            if is_windows then
-                os.execute(string.format('start "" "%s"', response.download))
-            else
-                os.execute(string.format('xdg-open "%s" 2>/dev/null || open "%s" 2>/dev/null', response.download, response.download))
+            if os and type(os.execute) == "function" then
+                local is_windows = (package and type(package.config) == "string" and package.config:sub(1, 1) == "\\")
+                    or (os and type(os.getenv) == "function" and (os.getenv("OS") or ""):find("Windows") ~= nil)
+                if is_windows then
+                    os.execute(string.format('start "" "%s"', response.download))
+                else
+                    os.execute(string.format('xdg-open "%s" 2>/dev/null || open "%s" 2>/dev/null', response.download, response.download))
+                end
             end
             return self:fail("use latest update")
         else

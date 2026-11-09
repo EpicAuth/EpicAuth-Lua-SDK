@@ -17,9 +17,57 @@ function http.build_query(params)
     return table.concat(parts, "&")
 end
 
+local function normalize_headers(raw_h)
+    local h = {}
+    if type(raw_h) == "table" then
+        for k, v in pairs(raw_h) do
+            local val = type(v) == "table" and v[1] or v
+            h[tostring(k):lower()] = tostring(val)
+        end
+    end
+    return h
+end
+
 function http.post(url, post_data_str, custom_handler)
     if type(custom_handler) == "function" then
-        return custom_handler(url, { ["Content-Type"] = "application/x-www-form-urlencoded" }, post_data_str)
+        local headers = { ["Content-Type"] = "application/x-www-form-urlencoded" }
+        local ok, res, opt2, opt3 = pcall(custom_handler, url, headers, post_data_str)
+        if not ok or res == nil then
+            local ok2, res2, opt2_2, opt3_2 = pcall(custom_handler, {
+                url = url,
+                method = "POST",
+                headers = headers,
+                body = post_data_str
+            })
+            if ok2 and res2 ~= nil then
+                ok, res, opt2, opt3 = ok2, res2, opt2_2, opt3_2
+            end
+        end
+
+        if not ok then
+            error("Custom http_handler failed: " .. tostring(res))
+        end
+
+        if type(res) == "string" then
+            local status_code = tonumber(opt2) or (type(opt2) == "table" and tonumber(opt3)) or 200
+            local raw_h = (type(opt2) == "table" and opt2) or (type(opt3) == "table" and opt3) or {}
+            return {
+                status = status_code,
+                body = res,
+                headers = normalize_headers(raw_h)
+            }
+        elseif type(res) == "table" then
+            local status_code = tonumber(res.status or res.statusCode or res.StatusCode or res.code or res.status_code) or
+                200
+            local body_str = tostring(res.body or res.Body or res.content or res.text or "")
+            local raw_h = res.headers or res.Headers or {}
+            return {
+                status = status_code,
+                body = body_str,
+                headers = normalize_headers(raw_h)
+            }
+        end
+        return res
     end
 
     local game_obj = rawget(_G, "game")
@@ -32,12 +80,7 @@ function http.post(url, post_data_str, custom_handler)
                 Headers = { ["Content-Type"] = "application/x-www-form-urlencoded" },
                 Body = post_data_str
             })
-            local h = {}
-            if resp.Headers then
-                for k, v in pairs(resp.Headers) do
-                    h[k:lower()] = v
-                end
-            end
+            local h = normalize_headers(resp.Headers)
             return { status = resp.StatusCode or 200, body = resp.Body or "", headers = h }
         end
     end
@@ -46,17 +89,10 @@ function http.post(url, post_data_str, custom_handler)
     if type(gg) == "table" and type(gg.makeRequest) == "function" then
         local res = gg.makeRequest(url, { ["Content-Type"] = "application/x-www-form-urlencoded" }, post_data_str)
         if res then
-            local h = {}
-            if type(res.headers) == "table" then
-                for k, v in pairs(res.headers) do
-                    local val = type(v) == "table" and v[1] or v
-                    h[tostring(k):lower()] = tostring(val)
-                end
-            end
             return {
                 status = tonumber(res.code) or 200,
                 body = res.content or "",
-                headers = h
+                headers = normalize_headers(res.headers)
             }
         end
     end
@@ -75,19 +111,21 @@ function http.post(url, post_data_str, custom_handler)
             source = ltn12.source.string(post_data_str),
             sink = ltn12.sink.table(resp_body)
         })
-        local h = {}
-        if type(resp_headers) == "table" then
-            for k, v in pairs(resp_headers) do
-                h[k:lower()] = v
-            end
-        end
-        return { status = tonumber(code) or 200, body = table.concat(resp_body), headers = h }
+        return {
+            status = tonumber(code) or 200,
+            body = table.concat(resp_body),
+            headers = normalize_headers(
+                resp_headers)
+        }
     end
 
-    if type(io.popen) == "function" then
-        local is_windows = (package.config:sub(1, 1) == "\\")
-        local tmp_dir = os.getenv("TEMP") or os.getenv("TMP") or (is_windows and "." or "/tmp")
-        local tmp_file = string.format("%s/epicauth_%d_%d.tmp", tmp_dir, os.time(), math.random(1000, 9999))
+    if io and type(io.popen) == "function" and type(io.open) == "function" then
+        local is_windows = (package and type(package.config) == "string" and package.config:sub(1, 1) == "\\")
+            or (os and type(os.getenv) == "function" and (os.getenv("OS") or ""):find("Windows") ~= nil)
+        local tmp_dir = (os and type(os.getenv) == "function" and (os.getenv("TEMP") or os.getenv("TMP"))) or
+            (is_windows and "." or "/tmp")
+        local ostime = (os and type(os.time) == "function" and os.time()) or 0
+        local tmp_file = string.format("%s/epicauth_%d_%d.tmp", tmp_dir, ostime, math.random(1000, 9999))
         local f = io.open(tmp_file, "wb")
         if f then
             f:write(post_data_str)

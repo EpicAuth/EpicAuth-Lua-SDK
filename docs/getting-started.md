@@ -2,19 +2,66 @@
 
 This guide walks you through setting up and using the EpicAuth Lua SDK in your application.
 
-## 1. Installation
+## 1. Distribution & Installation Targets
 
-### LuaRocks
-Install the package globally or into your local project tree:
+EpicAuth Lua SDK supports three distinct integration approaches depending on your project type:
+
+### Target A: LuaRocks Package Manager
+Recommended for standard Lua command-line tools, daemon services, and desktop scripts:
 
 ```bash
 luarocks install epicauth
 ```
 
-### Direct Download / Vendoring
-If you prefer not to use a package manager (e.g. in game scripts or standalone binaries), copy `epicauth.lua` and the `src/` directory into your project:
+In your scripts:
+```lua
+local EpicAuth = require("epicauth")
+```
+
+---
+
+### Target B: Single-File Standalone Bundle (`epicauth.bundle.lua`)
+Recommended for embedded game engines (**Roblox**, **FiveM**, **GameGuardian**), sandboxed plugins, or zero-dependency distributions where installing packages or bundling multiple directories is prohibited or impractical.
+
+1. Download `epicauth.bundle.lua` from GitHub Releases (or generate it using `lua scripts/bundle.lua`).
+2. Load it directly into your script:
 
 ```lua
+-- Method 1: dofile (recommended for single-file scripts & local runtimes)
+local EpicAuth = dofile("epicauth.bundle.lua")
+
+-- Method 2: loadfile (evaluated chunk)
+local EpicAuth = loadfile("epicauth.bundle.lua")()
+
+-- Method 3: require (when placed inside package.path)
+local EpicAuth = require("epicauth.bundle")
+```
+
+*Note: The bundle incorporates an internal fallback module registry so submodules (`epicauth.client`, `epicauth.crypto`, etc.) resolve properly even in locked-down sandboxes where `package.preload` or `package.loaded` are disabled.*
+
+---
+
+### Target C: Multi-File Source Integration (Vendoring)
+If you prefer direct source integration without LuaRocks, copy `epicauth.lua` and the `src/` directory into your project structure:
+
+```text
+my_project/
+├── epicauth.lua
+├── src/
+│   └── epicauth/
+│       ├── init.lua
+│       ├── client.lua
+│       ├── crypto.lua
+│       ├── errors.lua
+│       ├── http.lua
+│       ├── hwid.lua
+│       └── json.lua
+└── main.lua
+```
+
+In your scripts:
+```lua
+package.path = "./?.lua;./src/?.lua;./src/?/init.lua;" .. package.path
 local EpicAuth = require("epicauth")
 ```
 

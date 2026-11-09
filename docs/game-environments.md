@@ -1,17 +1,21 @@
 # Game Engine & Environment Guides
 
-EpicAuth Lua SDK automatically detects and adapts to game engine sandboxes without requiring external C libraries.
+EpicAuth Lua SDK automatically detects and adapts to game engine sandboxes without requiring external C libraries. You can use the single-file bundle (`epicauth.bundle.lua`) or the multi-file source.
 
 ---
 
 ## 1. Roblox Integration
 
-Roblox requires `HttpService` enabled in Game Settings. The SDK automatically detects the Roblox environment and uses `HttpService:RequestAsync`.
+Roblox requires `HttpService` enabled in Game Settings (`Home > Game Settings > Security > Allow HTTP Requests`).
+
+### Installation via Single-File Bundle:
+1. Create a **`ModuleScript`** in `ServerScriptService` (or `ReplicatedStorage`) and name it `EpicAuth`.
+2. Paste the entire content of `epicauth.bundle.lua` into this `ModuleScript`.
 
 ### Server Script Example (`ServerScriptService`)
 ```lua
 local HttpService = game:GetService("HttpService")
-local EpicAuth = require(script.Parent.EpicAuth)
+local EpicAuth = require(game.ServerScriptService.EpicAuth)
 
 local app = EpicAuth.new({
     name = "RobloxGameHub",
@@ -52,15 +56,26 @@ end)
 
 FiveM servers run server-side Lua scripts. The SDK works out of the box using `curl` or a custom HTTP bridge using `PerformHttpRequest`.
 
+### Installation via Single-File Bundle:
+Place `epicauth.bundle.lua` inside your FiveM resource folder (e.g., `resources/[my-resource]/`) and load it via `dofile`:
+
+```lua
+local EpicAuth = dofile(GetResourcePath(GetCurrentResourceName()) .. "/epicauth.bundle.lua")
+```
+
 ### Server Script Example (`server.lua`)
 ```lua
-local EpicAuth = require("epicauth")
+local EpicAuth = dofile(GetResourcePath(GetCurrentResourceName()) .. "/epicauth.bundle.lua")
 
 local app = EpicAuth.new({
     name = "FiveMResource",
     ownerid = "YOUR_OWNER_ID",
     version = "1.0",
-    exitOnError = false
+    exitOnError = false,
+    -- Optional custom HWID using server license or IP
+    hwid = function()
+        return GetConvar("sv_licenseKeyToken", "fivem_server_default")
+    end
 })
 
 CreateThread(function()
@@ -100,10 +115,11 @@ end, false)
 
 ## 3. GameGuardian (Android)
 
-GameGuardian provides `gg.makeRequest`. The SDK automatically routes requests through GameGuardian's internal networking.
+GameGuardian scripts run in a restricted Lua sandbox. The SDK automatically detects `gg.makeRequest` and routes all network calls through it without shell access or sockets.
 
+Using `epicauth.bundle.lua`:
 ```lua
-local EpicAuth = require("epicauth")
+local EpicAuth = dofile(gg.EXT_STORAGE .. "/epicauth.bundle.lua")
 
 local app = EpicAuth.new({
     name = "GameModMenu",
@@ -118,6 +134,19 @@ local prompt = gg.prompt({"Enter License Key:"}, nil, {"text"})
 if not prompt or not prompt[1] or #prompt[1] == 0 then
     gg.alert("No key provided.")
     os.exit()
+end
+
+local ok, res = pcall(function()
+    return app:license({ license = prompt[1] })
+end)
+
+if ok then
+    gg.toast("License verified! Welcome " .. app.user_data.username)
+else
+    gg.alert("Verification failed: " .. tostring(res))
+    os.exit()
+end
+```
 end
 
 local ok, err = pcall(function()

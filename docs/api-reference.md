@@ -4,6 +4,28 @@ Comprehensive reference for all methods and properties available in `EpicAuth`.
 
 ---
 
+## Constructor
+
+### `EpicAuth.new(options)`
+Creates and configures a new `EpicAuth` client instance.
+
+#### Options Table:
+| Parameter | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `name` | `string` | **Yes** | — | Dashboard Application Name. |
+| `ownerid` | `string` | **Yes** | — | 10-character Account Owner ID. |
+| `version` | `string` | **Yes** | — | Application Version (e.g., `"1.0"`). |
+| `hash_to_check` | `string` | No | `nil` | Expected binary sha256 hash. |
+| `url` | `string` | No | `"https://epicauth.cc/api/1.3/"` | API endpoint URL. |
+| `path` | `string` | No | `nil` | Path to session token file. |
+| `exitOnError` | `boolean` | No | `true` | Exit process on error (set `false` in game servers). |
+| `loggingEnabled` | `boolean` | No | `false` | Enable local disk logs in `~/.epicauth/logs/`. |
+| `hwid` | `string \| function` | No | `nil` | Custom HWID string or provider callback `fn() -> string`. |
+| `hwid_handler` | `function` | No | `nil` | Custom HWID provider callback (alias). |
+| `http_handler` | `function` | No | `nil` | Custom HTTP transport adapter `fn(url, headers, body)`. |
+
+---
+
 ## Properties
 
 | Property | Type | Description |

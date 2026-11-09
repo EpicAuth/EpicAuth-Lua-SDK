@@ -6,18 +6,83 @@ Compatible with **Lua 5.1, 5.2, 5.3, 5.4**, and **LuaJIT**, as well as game envi
 
 ---
 
-## Installation
+## Distribution & Installation
 
-### Via LuaRocks
+EpicAuth Lua SDK offers three distribution targets tailored to different developer workflows and execution environments:
+
+### 1. Package Manager (LuaRocks)
+For standard Lua development (CLI tools, server daemons, desktop applications) with LuaRocks:
+
 ```bash
 luarocks install epicauth
 ```
 
-### Manual / Embedded
-Clone the repository or copy `epicauth.lua` and the `src/` directory into your project:
+In your code:
 ```lua
 local EpicAuth = require("epicauth")
 ```
+
+---
+
+### 2. Single-File Standalone Bundle (`epicauth.bundle.lua`)
+For embedded runtimes, game engines (**Roblox**, **FiveM**, **GameGuardian**), plugin sandboxes, or environments without package managers or filesystem access.
+
+Download `epicauth.bundle.lua` from [GitHub Releases](https://github.com/EpicAuth/EpicAuth-Lua-SDK/releases) (or build it from source with `lua scripts/bundle.lua`), and load it using any standard Lua loader:
+
+```lua
+-- Option A: Direct file execution (recommended for sandboxes/scripts)
+local EpicAuth = dofile("epicauth.bundle.lua")
+
+-- Option B: Evaluated chunk execution
+local EpicAuth = loadfile("epicauth.bundle.lua")()
+
+-- Option C: Standard require (when placed inside package.path)
+local EpicAuth = require("epicauth.bundle")
+```
+
+The bundle is completely self-contained with a fallback internal module registry and lazy loader. Internal submodules (`epicauth.client`, `epicauth.crypto`, etc.) resolve properly even in strict sandboxes where the global `package` table is restricted.
+
+---
+
+### 3. Multi-File Source Integration (Vendoring)
+For source-level integration without package managers, download `epicauth-lua-sdk-source.zip` from Releases or copy `epicauth.lua` and the `src/` directory directly into your project:
+
+```text
+your-project/
+├── epicauth.lua
+├── src/
+│   └── epicauth/
+│       ├── init.lua
+│       ├── client.lua
+│       ├── crypto.lua
+│       ├── errors.lua
+│       ├── http.lua
+│       ├── hwid.lua
+│       └── json.lua
+└── main.lua
+```
+
+In your code:
+```lua
+-- Ensure package.path includes project root if needed:
+package.path = "./?.lua;./src/?.lua;./src/?/init.lua;" .. package.path
+
+local EpicAuth = require("epicauth")
+```
+
+---
+
+### Building the Single-File Bundle from Source
+
+To package all modules in `src/epicauth/` into `dist/epicauth.bundle.lua`:
+
+```bash
+lua scripts/bundle.lua
+```
+
+Options:
+- `--output <path>`: Specify custom destination path (default: `dist/epicauth.bundle.lua`).
+- `--no-verify`: Skip post-build syntax and export validation.
 
 ---
 
@@ -175,8 +240,9 @@ Populated when `init()` or `fetchStats()` is called:
 - `path` *(string, optional)*: File path to read session token from.
 - `exitOnError` *(boolean, optional, default: true)*: If `true`, prints error and exits process on critical failure. If `false`, raises an `EpicAuthError`.
 - `loggingEnabled` *(boolean, optional, default: false)*: Enables local audit logs in `~/.epicauth/logs/`.
-- `http_handler` *(function, optional)*: Custom HTTP transport handler function `fn(url, headers, body)`.
-- `hwid` *(string, optional)*: Explicit HWID override.
+- `http_handler` *(function, optional)*: Custom HTTP transport handler for sandboxed or game runtimes (e.g., `fn(url, headers, body)` or table options). Supports returning status/body/headers table or `(body, status, headers)`.
+- `hwid` *(string | function, optional)*: Explicit hardware identifier string or custom HWID provider callback function `fn() -> string`.
+- `hwid_handler` *(function, optional)*: Alias for providing a custom HWID generation callback.
 
 ---
 

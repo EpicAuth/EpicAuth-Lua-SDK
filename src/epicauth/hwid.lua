@@ -11,13 +11,19 @@ end
 local crypto = load_internal("crypto")
 
 function hwid.get(custom_override)
-    if custom_override and #custom_override > 0 then
-        return custom_override
+    if type(custom_override) == "function" then
+        local ok, val = pcall(custom_override)
+        if ok and val and tostring(val) ~= "" then
+            return tostring(val)
+        end
+    elseif (type(custom_override) == "string" or type(custom_override) == "number") and #tostring(custom_override) > 0 then
+        return tostring(custom_override)
     end
 
-    local is_windows = (package.config:sub(1, 1) == "\\")
+    local is_windows = (package and type(package.config) == "string" and package.config:sub(1, 1) == "\\")
+        or (os and type(os.getenv) == "function" and (os.getenv("OS") or ""):find("Windows") ~= nil)
 
-    if is_windows and type(io.popen) == "function" then
+    if is_windows and io and type(io.popen) == "function" then
         local ok, p = pcall(io.popen, 'reg query "HKLM\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid 2>nul')
         if ok and p then
             local out = p:read("*a")
@@ -28,7 +34,7 @@ function hwid.get(custom_override)
             end
         end
 
-        local username = os.getenv("USERNAME") or ""
+        local username = (os and type(os.getenv) == "function" and os.getenv("USERNAME")) or ""
         if #username > 0 then
             local ok_sid, p_sid = pcall(io.popen, string.format('wmic useraccount where name="%s" get sid 2>nul', username))
             if ok_sid and p_sid then
@@ -42,7 +48,7 @@ function hwid.get(custom_override)
         end
     end
 
-    if not is_windows and type(io.open) == "function" then
+    if not is_windows and io and type(io.open) == "function" then
         local f = io.open("/etc/machine-id", "r") or io.open("/var/lib/dbus/machine-id", "r")
         if f then
             local mid = f:read("*a")
@@ -66,13 +72,14 @@ function hwid.get(custom_override)
         end
     end
 
-    local getenv = os.getenv or function() return nil end
+    local getenv = (os and type(os.getenv) == "function" and os.getenv) or function() return nil end
+    local ostime = (os and type(os.time) == "function" and os.time) or function() return 0 end
     local fallback = table.concat({
         getenv("COMPUTERNAME") or getenv("HOSTNAME") or "DEVICE",
         getenv("USERNAME") or getenv("USER") or "USER",
         getenv("PROCESSOR_ARCHITECTURE") or getenv("HOSTTYPE") or "ARCH",
         getenv("PROCESSOR_IDENTIFIER") or getenv("OS") or "GENERIC",
-        tostring(os.time())
+        tostring(ostime())
     }, "|")
 
     return crypto.sha256(fallback):sub(1, 32)

@@ -40,3 +40,14 @@ jobs:
             assert(type(app.getHWID) == "function", "getHWID is not a function")
             print("Loaded EpicAuth successfully on " .. _VERSION .. ", HWID: " .. tostring(app:getHWID()))
           '
+
+      - name: Build & Test Single-File Bundle
+        run: |
+          lua scripts/bundle.lua
+          lua -e '
+            local EpicAuth = dofile("dist/epicauth.bundle.lua")
+            assert(type(EpicAuth.new) == "function", "Bundle EpicAuth.new is not a function")
+            local app = EpicAuth.new({ name = "TestApp", ownerid = "1234567890", version = "1.0", exitOnError = false })
+            assert(type(app.getHWID) == "function", "Bundle getHWID is not a function")
+            print("Loaded EpicAuth Bundle successfully on " .. _VERSION .. ", HWID: " .. tostring(app:getHWID()))
+          '
