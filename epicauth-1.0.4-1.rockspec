@@ -1,10 +1,10 @@
 rockspec_format = "3.0"
 package = "epicauth"
-version = "1.0.3-1"
+version = "1.0.4-1"
 
 source = {
    url = "git+https://github.com/EpicAuth/EpicAuth-Lua-SDK.git",
-   tag = "v1.0.3"
+   tag = "v1.0.4"
 }
 
 description = {

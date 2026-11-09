@@ -27,8 +27,10 @@ jobs:
 
       - name: Lint Rockspec
         run: |
-          luarocks lint epicauth-1.0.3-1.rockspec
-          luarocks lint epicauth-scm-1.rockspec
+          for f in epicauth-*.rockspec; do
+            echo "Linting $f..."
+            luarocks lint "$f"
+          done
 
       - name: Test Module Loading
         run: |
