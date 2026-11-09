@@ -1,0 +1,59 @@
+name: Publish to LuaRocks
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: "5.1"
+
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Install Upload Dependencies
+        run: |
+          luarocks install dkjson
+
+      - name: Verify Rockspec
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${TAG_NAME#v}"
+            ROCKSPEC="epicauth-${VERSION}-1.rockspec"
+            if [ ! -f "$ROCKSPEC" ]; then
+              ROCKSPEC=$(ls epicauth-*.rockspec | grep -v scm | head -n 1)
+            fi
+          else
+            ROCKSPEC=$(ls epicauth-*.rockspec | grep -v scm | head -n 1)
+          fi
+          echo "Selected rockspec: $ROCKSPEC"
+          luarocks lint "$ROCKSPEC"
+
+      - name: Upload to LuaRocks
+        env:
+          LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${TAG_NAME#v}"
+            ROCKSPEC="epicauth-${VERSION}-1.rockspec"
+            if [ ! -f "$ROCKSPEC" ]; then
+              ROCKSPEC=$(ls epicauth-*.rockspec | grep -v scm | head -n 1)
+            fi
+          else
+            ROCKSPEC=$(ls epicauth-*.rockspec | grep -v scm | head -n 1)
+          fi
+          echo "Uploading $ROCKSPEC to LuaRocks..."
+          luarocks upload "$ROCKSPEC" --api-key="$LUAROCKS_API_KEY"

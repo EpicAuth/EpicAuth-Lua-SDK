@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        luaVersion: ["5.1", "5.2", "5.3", "5.4", "luajit-2.1"]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Lua ${{ matrix.luaVersion }}
+        uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: ${{ matrix.luaVersion }}
+
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+
+      - name: Lint Rockspec
+        run: |
+          luarocks lint epicauth-1.0.3-1.rockspec
+          luarocks lint epicauth-scm-1.rockspec
+
+      - name: Test Module Loading
+        run: |
+          lua -e '
+            local EpicAuth = require("epicauth")
+            assert(type(EpicAuth.new) == "function", "EpicAuth.new is not a function")
+            assert(type(EpicAuth.EpicAuthError) == "table", "EpicAuthError is missing")
+            local app = EpicAuth.new({ name = "TestApp", ownerid = "1234567890", version = "1.0", exitOnError = false })
+            assert(type(app.getHWID) == "function", "getHWID is not a function")
+            print("Loaded EpicAuth successfully on " .. _VERSION .. ", HWID: " .. tostring(app:getHWID()))
+          '
