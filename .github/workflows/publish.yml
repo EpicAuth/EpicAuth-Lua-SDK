@@ -81,7 +81,8 @@ jobs:
       - name: Upload to LuaRocks
         if: env.LUAROCKS_API_KEY != ''
         run: |
-          ROCKSPEC=$(ls epicauth-*.rockspec | grep -v scm | head -n 1)
+          if [ -z "$ROCKSPEC" ]; then
+            ROCKSPEC=$(ls epicauth-*.rockspec 2>/dev/null | grep -v scm | head -n 1)
           fi
           echo "Uploading $ROCKSPEC to LuaRocks..."
           luarocks upload "$ROCKSPEC" --api-key="$LUAROCKS_API_KEY"
